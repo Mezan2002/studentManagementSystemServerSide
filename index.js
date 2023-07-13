@@ -46,6 +46,26 @@ const run = async () => {
     });
 
     // * register user API end
+
+    // * login user API Start
+    app.get("/logInUser", async (req, res) => {
+      const phoneNumber = req.query.phoneNumber;
+      const password = req.query.password;
+      const query = {
+        "logInInfo.logInMobileNumber": phoneNumber,
+        "logInInfo.logInPassword": password,
+      };
+      const result = await usersCollection.findOne(query);
+      if (result === null) {
+        res.send({
+          message:
+            "phone number or password incorrect please try again with correct phone number and password",
+        });
+      } else {
+        res.send(result);
+      }
+    });
+    // * login user API End
   } finally {
     console.log();
   }
