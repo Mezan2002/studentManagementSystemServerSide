@@ -16,7 +16,6 @@ app.use(express.json());
 
 // * connect mongoDB start
 const uri = `mongodb+srv://${process.env.db_username}:${process.env.db_password}@cluster0.2ahck7i.mongodb.net/?retryWrites=true&w=majority`;
-console.log(uri);
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -40,7 +39,6 @@ const run = async () => {
 
     app.post("/registerUser", async (req, res) => {
       const usersData = req.body;
-      console.log(usersData);
       const result = await usersCollection.insertOne(usersData);
       res.send(result);
     });
@@ -66,6 +64,23 @@ const run = async () => {
       }
     });
     // * login user API End
+
+    // * is phone number has registered before API start
+    app.get("/isNumberExist", async (req, res) => {
+      const phoneNumber = req.query.phoneNumber;
+      const query = {
+        "logInInfo.logInMobileNumber": phoneNumber,
+      };
+      const result = await usersCollection.findOne(query);
+      if (result === null) {
+        res.send(false);
+        console.log("true");
+      } else {
+        res.send(true);
+        console.log("true");
+      }
+    });
+    // * is phone number has registered before API end
   } finally {
     console.log();
   }
