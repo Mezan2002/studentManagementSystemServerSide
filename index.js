@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const app = express();
 const port = process.env.PORT || 3000;
 // * require end
@@ -25,6 +26,24 @@ const client = new MongoClient(uri, {
   },
 });
 // * connect mongoDB end
+
+// * verify JWT API start
+const verifyJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader.split(" ")[1];
+  if (!authHeader) {
+    return res.status(401).send({ message: "Missing token" });
+  }
+  jwt.verify(token, process.env.jwt_token_secret, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Invalid Token" });
+    }
+    const id = decoded;
+    req.decoded = id;
+    next();
+  });
+};
+// * verify JWT API end
 
 // * collections start
 
@@ -60,10 +79,23 @@ const run = async () => {
             "phone number or password incorrect please try again with correct phone number and password",
         });
       } else {
-        res.send(result);
+        const objectId = result._id;
+        // new ObjectId("64aff28a1e04e8e3bd8e83d1");
+        const id = objectId.toString().match(/([0-9a-fA-F]){24}/)[0];
+        const token = jwt.sign(id, process.env.jwt_token_secret);
+        // console.log(token);
+        res.send(token);
       }
     });
     // * login user API End
+
+    // * get users data API start
+    app.get("/getUser", verifyJWT, async (req, res) => {
+      const query = new ObjectId(req.decoded);
+      const user = await usersCollection.findOne(query);
+      res.send(user);
+    });
+    // * get users data API end
 
     // * is phone number has registered before API start
     app.get("/isNumberExist", async (req, res) => {
@@ -74,10 +106,8 @@ const run = async () => {
       const result = await usersCollection.findOne(query);
       if (result === null) {
         res.send(false);
-        console.log("true");
       } else {
         res.send(true);
-        console.log("true");
       }
     });
     // * is phone number has registered before API end
