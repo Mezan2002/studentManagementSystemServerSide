@@ -66,6 +66,10 @@ const run = async () => {
 
     // * login user API Start
     app.get("/logInUser", async (req, res) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).send({ message: "Missing token" });
+      }
       const phoneNumber = req.query.phoneNumber;
       const password = req.query.password;
       const query = {
@@ -80,10 +84,10 @@ const run = async () => {
         });
       } else {
         const objectId = result._id;
-        // new ObjectId("64aff28a1e04e8e3bd8e83d1");
         const id = objectId.toString().match(/([0-9a-fA-F]){24}/)[0];
-        const token = jwt.sign(id, process.env.jwt_token_secret);
-        // console.log(token);
+        const token = jwt.sign({ id }, process.env.jwt_token_secret, {
+          expiresIn: "10h",
+        });
         res.send(token);
       }
     });
