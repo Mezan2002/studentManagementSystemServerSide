@@ -4,15 +4,20 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
+const SSLCommerzPayment = require("sslcommerz-lts");
 const app = express();
 const port = process.env.PORT || 3000;
 // * require end
 
-// * middlewares start
+// * SSL Commerce Initialization Start
+const store_id = process.env.store_id;
+const store_passwd = process.env.store_passwd;
+const is_live = false; //true for live, false for sandbox
+// * SSL Commerce Initialization End
 
+// * middlewares start
 app.use(cors());
 app.use(express.json());
-
 // * middlewares end
 
 // * connect mongoDB start
@@ -46,9 +51,10 @@ const verifyJWT = (req, res, next) => {
 // * verify JWT API end
 
 // * collections start
-
 const usersCollection = client.db("studentManagersDBUser").collection("users");
-
+const paymentsOccasionCollection = client
+  .db("studentManagersDBUser")
+  .collection("paymentsOccasion");
 // * collections end
 
 // * CRUD run function start
