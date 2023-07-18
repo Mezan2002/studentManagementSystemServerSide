@@ -90,11 +90,12 @@ const run = async () => {
         });
       } else {
         const objectId = result._id;
+        const userType = result.userType;
         const id = objectId.toString().match(/([0-9a-fA-F]){24}/)[0];
         const token = jwt.sign({ id }, process.env.jwt_token_secret, {
           expiresIn: "10h",
         });
-        res.send(token);
+        res.send({ token, userType });
       }
     });
     // * login user API End
