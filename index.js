@@ -61,6 +61,9 @@ const usersCollection = client.db("studentManagersDBUser").collection("users");
 const paymentsOccasionCollection = client
   .db("studentManagersDBUser")
   .collection("paymentsOccasion");
+const paymentsInfoCollection = client
+  .db("studentManagersDBUser")
+  .collection("paymentsInfo");
 // * collections end
 
 // * CRUD run function start
@@ -157,9 +160,9 @@ const run = async () => {
         total_amount: paymentFor?.paymentAmount,
         currency: "BDT",
         tran_id: transId,
-        success_url: "http://localhost:3030/success",
-        fail_url: "http://localhost:3030/fail",
-        cancel_url: "http://localhost:3030/cancel",
+        success_url: `http://localhost:3000/payment/success?transactionId=${transId}`,
+        fail_url: "http://localhost:3000/payment/fail",
+        cancel_url: "http://localhost:3000/payment/cancel",
         ipn_url: "http://localhost:3030/ipn",
         shipping_method: "Courier",
         product_name: paymentFor?.paymentTitle,
@@ -190,6 +193,15 @@ const run = async () => {
         .then((apiResponse) => {
           if (apiResponse?.status === "SUCCESS") {
             let GatewayPageURL = apiResponse.GatewayPageURL;
+            paymentsInfoCollection.insertOne({
+              paymentAmount: paymentFor.paymentAmount,
+              paymentTitle: paymentFor.paymentTitle,
+              paymentFor: paymentFor.paymentFor,
+              paymentFeeId: paymentFor._id.toString(),
+              transId,
+              userId,
+              paid: false,
+            });
             res.send({ url: GatewayPageURL });
           } else {
             console.error("Unexpected API response:", apiResponse);
@@ -202,6 +214,36 @@ const run = async () => {
         });
     });
     // * paymet by SSL Commerce API end
+
+    // * payment success post API start
+    app.post("/payment/success", async (req, res) => {
+      const { transactionId } = req.query;
+      const result = await paymentsInfoCollection.updateOne(
+        { transId: transactionId },
+        {
+          $set: {
+            paid: true,
+            paidAt: new Date(),
+          },
+        }
+      );
+      console.log(result);
+      if (result.modifiedCount > 0) {
+        res.redirect(
+          `http://localhost:5173/studentsDashboard/payment/success?transactionId=${transactionId}`
+        );
+      }
+    });
+    // * payment success post API end
+
+    // * get users payment API start
+    app.get("/getUsersPayment/:transId", async (req, res) => {
+      const { transId } = req.params;
+      const query = { transId: transId };
+      const paymentOfUser = await paymentsInfoCollection.findOne(query);
+      res.send(paymentOfUser);
+    });
+    // * get users payment API end
   } finally {
     console.log();
   }
