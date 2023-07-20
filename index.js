@@ -1,7 +1,13 @@
 // * require start
 const express = require("express");
+const { v4: uuidv4 } = require("uuid");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const {
+  MongoClient,
+  ServerApiVersion,
+  ObjectId,
+  Transaction,
+} = require("mongodb");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const SSLCommerzPayment = require("sslcommerz-lts");
@@ -61,13 +67,11 @@ const paymentsOccasionCollection = client
 const run = async () => {
   try {
     // * register user API start
-
     app.post("/registerUser", async (req, res) => {
       const usersData = req.body;
       const result = await usersCollection.insertOne(usersData);
       res.send(result);
     });
-
     // * register user API end
 
     // * login user API Start
@@ -122,6 +126,82 @@ const run = async () => {
       }
     });
     // * is phone number has registered before API end
+
+    // * post the payments occasion API start
+    app.post("/postPaymetsOccasions", async (req, res) => {
+      const data = req.body;
+      console.log(data);
+      const result = await paymentsOccasionCollection.insertOne(data);
+      res.send(result);
+    });
+    // * post the payments occasion API end
+
+    // * get the payments occasion API start
+    app.get("/getPaymentOccasions", async (req, res) => {
+      const query = {};
+      const result = await paymentsOccasionCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get the payments occasion API end
+
+    // * paymet by SSL Commerce API start
+    app.post("/getPayment", async (req, res) => {
+      const paymentInfo = req.body;
+      const userInfo = paymentInfo.userInfo;
+      const userId = paymentInfo.userId;
+      const paymentId = paymentInfo.paymentId;
+      const paymentQuery = { _id: new ObjectId(paymentId) };
+      const paymentFor = await paymentsOccasionCollection.findOne(paymentQuery);
+      const transId = uuidv4();
+      const data = {
+        total_amount: paymentFor?.paymentAmount,
+        currency: "BDT",
+        tran_id: transId,
+        success_url: "http://localhost:3030/success",
+        fail_url: "http://localhost:3030/fail",
+        cancel_url: "http://localhost:3030/cancel",
+        ipn_url: "http://localhost:3030/ipn",
+        shipping_method: "Courier",
+        product_name: paymentFor?.paymentTitle,
+        product_category: paymentFor?.paymentTitle,
+        product_profile: paymentFor?.paymentTitle,
+        cus_name: userInfo?.userName,
+        cus_email: userInfo?.userEmail,
+        cus_add1: "Rangpur",
+        cus_add2: "Pirgachha",
+        cus_city: "Rangpur",
+        cus_state: "Rangpur",
+        cus_postcode: userInfo?.usersPostCode,
+        cus_country: "Bangladesh",
+        cus_phone: userInfo?.userPhoneNumber,
+        cus_fax: userInfo?.userPhoneNumber,
+        ship_name: userInfo?.userName,
+        ship_add1: "Rangpur",
+        ship_add2: "Pirgachha",
+        ship_city: "Rangpur",
+        ship_state: "Rangpur",
+        ship_postcode: userInfo?.usersPostCode,
+        ship_country: "Bangladesh",
+      };
+
+      const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live);
+      sslcz
+        .init(data)
+        .then((apiResponse) => {
+          if (apiResponse?.status === "SUCCESS") {
+            let GatewayPageURL = apiResponse.GatewayPageURL;
+            res.send({ url: GatewayPageURL });
+          } else {
+            console.error("Unexpected API response:", apiResponse);
+            res.status(500).send("Error: Unexpected API response");
+          }
+        })
+        .catch((err) => {
+          console.error("Error initializing payment:", err);
+          res.status(500).send("Error: Unable to initialize payment");
+        });
+    });
+    // * paymet by SSL Commerce API end
   } finally {
     console.log();
   }
