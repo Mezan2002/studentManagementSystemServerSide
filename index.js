@@ -160,9 +160,9 @@ const run = async () => {
         total_amount: paymentFor?.paymentAmount,
         currency: "BDT",
         tran_id: transId,
-        success_url: `http://localhost:3000/payment/success?transactionId=${transId}`,
-        fail_url: "http://localhost:3000/payment/fail",
-        cancel_url: "http://localhost:3000/payment/cancel",
+        success_url: `${process.env.SERVER_URL}/payment/success?transactionId=${transId}`,
+        fail_url: `${process.env.SERVER_URL}/payment/fail?transactionId=${transId}`,
+        cancel_url: `${process.env.SERVER_URL}/payment/cancel?transactionId=${transId}`,
         ipn_url: "http://localhost:3030/ipn",
         shipping_method: "Courier",
         product_name: paymentFor?.paymentTitle,
@@ -218,6 +218,11 @@ const run = async () => {
     // * payment success post API start
     app.post("/payment/success", async (req, res) => {
       const { transactionId } = req.query;
+      if (!transactionId) {
+        return res.redirect(
+          `${process.env.CLIENT_URL}studentsDashboard/payment/fail`
+        );
+      }
       const result = await paymentsInfoCollection.updateOne(
         { transId: transactionId },
         {
@@ -230,11 +235,36 @@ const run = async () => {
       console.log(result);
       if (result.modifiedCount > 0) {
         res.redirect(
-          `http://localhost:5173/studentsDashboard/payment/success?transactionId=${transactionId}`
+          `${process.env.CLIENT_URL}studentsDashboard/payment/success?transactionId=${transactionId}`
         );
       }
     });
     // * payment success post API end
+
+    // * payment failed post API start
+    app.post("/payment/fail", async (req, res) => {
+      const { transactionId } = req.query;
+      const result = await paymentsInfoCollection.deleteOne({
+        transId: transactionId,
+      });
+      if (result.deletedCount) {
+        res.redirect(`${process.env.CLIENT_URL}studentsDashboard/payment/fail`);
+      }
+    });
+    // * payment failed post API end
+    // * payment canceled post API start
+    app.post("/payment/cancel", async (req, res) => {
+      const { transactionId } = req.query;
+      const result = await paymentsInfoCollection.deleteOne({
+        transId: transactionId,
+      });
+      if (result.deletedCount) {
+        res.redirect(
+          `${process.env.CLIENT_URL}studentsDashboard/payment/cancel`
+        );
+      }
+    });
+    // * payment canceled post API end
 
     // * get users payment API start
     app.get("/getUsersPayment/:transId", async (req, res) => {
