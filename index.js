@@ -64,6 +64,9 @@ const paymentsOccasionCollection = client
 const paymentsInfoCollection = client
   .db("studentManagersDBUser")
   .collection("paymentsInfo");
+const complainCollection = client
+  .db("studentManagersDBUser")
+  .collection("complains");
 // * collections end
 
 // * CRUD run function start
@@ -274,6 +277,14 @@ const run = async () => {
       res.send(paymentOfUser);
     });
     // * get users payment API end
+
+    // * post a complain API start
+    app.post("/complain", async (req, res) => {
+      const complainData = req.body;
+      const result = await complainCollection.insertOne(complainData);
+      res.send(result);
+    });
+    // * post a complain API end
   } finally {
     console.log();
   }
