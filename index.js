@@ -67,6 +67,9 @@ const paymentsInfoCollection = client
 const complainCollection = client
   .db("studentManagersDBUser")
   .collection("complains");
+const attendenceCollection = client
+  .db("studentManagersDBUser")
+  .collection("attendences");
 // * collections end
 
 // * CRUD run function start
@@ -285,6 +288,29 @@ const run = async () => {
       res.send(result);
     });
     // * post a complain API end
+
+    // * get students to take attendence API start
+    app.get("/getStudents", async (req, res) => {
+      const { selectedClass, section } = req.query;
+      const query = {
+        "studentsInfo.class": selectedClass,
+        "studentsInfo.section": section,
+      };
+      const result = await usersCollection
+        .find(query)
+        .project({ studentsInfo: 1, _id: 1 })
+        .toArray();
+      res.send(result);
+    });
+    // * get students to take attendence API end
+
+    // * post attendence data API start
+    app.post("/postAttendence", async (req, res) => {
+      const attendenceData = req.body;
+      const result = await attendenceCollection.insertOne(attendenceData);
+      res.send(result);
+    });
+    // * post attendence data API end
   } finally {
     console.log();
   }
