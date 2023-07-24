@@ -162,11 +162,22 @@ const run = async () => {
       const paymentQuery = { _id: new ObjectId(paymentId) };
       const paymentFor = await paymentsOccasionCollection.findOne(paymentQuery);
       const transId = uuidv4();
+      let rollNumber = 100000;
+      let registrationNumber = 1617615000;
+      let successURL;
+      if (paymentFor.paymentTitle === "Exam Fee") {
+        rollNumber += 1;
+        registrationNumber += 1;
+        successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}&studentRollNumber=${rollNumber}&studentRegistrationNumber=${registrationNumber}`;
+      } else {
+        successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}`;
+      }
+
       const data = {
         total_amount: paymentFor?.paymentAmount,
         currency: "BDT",
         tran_id: transId,
-        success_url: `${process.env.SERVER_URL}/payment/success?transactionId=${transId}`,
+        success_url: successURL,
         fail_url: `${process.env.SERVER_URL}/payment/fail?transactionId=${transId}`,
         cancel_url: `${process.env.SERVER_URL}/payment/cancel?transactionId=${transId}`,
         ipn_url: "http://localhost:3030/ipn",
@@ -199,7 +210,7 @@ const run = async () => {
         .then((apiResponse) => {
           if (apiResponse?.status === "SUCCESS") {
             let GatewayPageURL = apiResponse.GatewayPageURL;
-            paymentsInfoCollection.insertOne({
+            const paymentData = {
               paymentAmount: paymentFor.paymentAmount,
               paymentTitle: paymentFor.paymentTitle,
               paymentFor: paymentFor.paymentFor,
@@ -207,7 +218,15 @@ const run = async () => {
               transId,
               userId,
               paid: false,
-            });
+            };
+            if (paymentFor.paymentTitle === "Exam Fee") {
+              paymentData.studentRollNumber = rollNumber;
+              paymentData.studentRegistrationNumber = registrationNumber;
+            }
+
+            console.log(paymentData);
+
+            paymentsInfoCollection.insertOne(paymentData);
             res.send({ url: GatewayPageURL });
           } else {
             console.error("Unexpected API response:", apiResponse);
@@ -223,25 +242,42 @@ const run = async () => {
 
     // * payment success post API start
     app.post("/payment/success", async (req, res) => {
-      const { transactionId } = req.query;
+      const { transactionId, studentRollNumber, studentRegistrationNumber } =
+        req.query;
+
       if (!transactionId) {
         return res.redirect(
           `${process.env.CLIENT_URL}studentsDashboard/payment/fail`
         );
       }
+
+      const updateData = {
+        $set: {
+          paid: true,
+          paidAt: new Date(),
+        },
+      };
+
+      // Update the payment information in the database
       const result = await paymentsInfoCollection.updateOne(
         { transId: transactionId },
-        {
-          $set: {
-            paid: true,
-            paidAt: new Date(),
-          },
-        }
+        updateData
       );
-      console.log(result);
+
       if (result.modifiedCount > 0) {
-        res.redirect(
-          `${process.env.CLIENT_URL}studentsDashboard/payment/success?transactionId=${transactionId}`
+        let redirectUrl = `${process.env.CLIENT_URL}studentsDashboard/payment/success?transactionId=${transactionId}`;
+
+        if (studentRollNumber && studentRegistrationNumber) {
+          // If studentRollNumber and studentRegistrationNumber exist, append them to the redirect URL
+          redirectUrl += `&studentRollNumber=${studentRollNumber}&studentRegistrationNumber=${studentRegistrationNumber}`;
+        }
+
+        // Redirect to the success URL
+        return res.redirect(redirectUrl);
+      } else {
+        // Handle the case where the update was unsuccessful
+        return res.redirect(
+          `${process.env.CLIENT_URL}studentsDashboard/payment/fail`
         );
       }
     });
