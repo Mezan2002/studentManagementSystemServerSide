@@ -166,8 +166,13 @@ const run = async () => {
       let registrationNumber = 1617615000;
       let successURL;
       if (paymentFor.paymentTitle === "Exam Fee") {
-        rollNumber += 1;
-        registrationNumber += 1;
+        const updatedData = await paymentsInfoCollection.findOneAndUpdate(
+          { _id: "studentCounters" },
+          { $inc: { rollNumber: 1, registrationNumber: 1 } },
+          { upsert: true, returnOriginal: false }
+        );
+        rollNumber = updatedData.value.rollNumber;
+        registrationNumber = updatedData.value.registrationNumber;
         successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}&studentRollNumber=${rollNumber}&studentRegistrationNumber=${registrationNumber}`;
       } else {
         successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}`;
@@ -347,6 +352,19 @@ const run = async () => {
       res.send(result);
     });
     // * post attendence data API end
+
+    // * get student data for making result API start
+    app.get("/get-students-for-making-result", async (req, res) => {
+      const { studentRollNumber, studentRegistrationNumber } = req.query;
+      const getStudent = {
+        studentRollNumber: parseInt(studentRollNumber),
+        studentRegistrationNumber: parseInt(studentRegistrationNumber),
+      };
+      const student = await paymentsInfoCollection.findOne(getStudent);
+      console.log(student);
+    });
+
+    // * get student data for making result API end
   } finally {
     console.log();
   }
