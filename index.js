@@ -2,12 +2,7 @@
 const express = require("express");
 const { v4: uuidv4 } = require("uuid");
 const cors = require("cors");
-const {
-  MongoClient,
-  ServerApiVersion,
-  ObjectId,
-  Transaction,
-} = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const SSLCommerzPayment = require("sslcommerz-lts");
@@ -58,6 +53,9 @@ const verifyJWT = (req, res, next) => {
 
 // * collections start
 const usersCollection = client.db("studentManagersDBUser").collection("users");
+const rollAndRegNumberCounterCollection = client
+  .db("studentManagersDBUser")
+  .collection("counter");
 const paymentsOccasionCollection = client
   .db("studentManagersDBUser")
   .collection("paymentsOccasion");
@@ -153,6 +151,40 @@ const run = async () => {
     });
     // * get the payments occasion API end
 
+    // * function to get roll and registration number API start
+    async function initializeCounters() {
+      const counterDoc = await rollAndRegNumberCounterCollection.findOne({
+        _id: "studentCounters",
+      });
+
+      if (!counterDoc) {
+        // If the counters document doesn't exist, create it with initial values
+        await rollAndRegNumberCounterCollection.insertOne({
+          _id: "studentCounters",
+          rollNumber: 100000,
+          registrationNumber: 1617615000,
+        });
+      }
+    }
+    async function getNextRollAndRegistrationNumbers() {
+      // Ensure the counters are initialized before updating them
+      await initializeCounters();
+
+      // Increment the counters and get the updated values
+      const counterDoc =
+        await rollAndRegNumberCounterCollection.findOneAndUpdate(
+          { _id: "studentCounters" },
+          { $inc: { rollNumber: 1, registrationNumber: 1 } },
+          { returnOriginal: false }
+        );
+      return {
+        rollNumber: counterDoc.value.rollNumber,
+        registrationNumber: counterDoc.value.registrationNumber,
+      };
+    }
+
+    // * function to get roll and registration number API end
+
     // * paymet by SSL Commerce API start
     app.post("/getPayment", async (req, res) => {
       const paymentInfo = req.body;
@@ -162,17 +194,11 @@ const run = async () => {
       const paymentQuery = { _id: new ObjectId(paymentId) };
       const paymentFor = await paymentsOccasionCollection.findOne(paymentQuery);
       const transId = uuidv4();
-      let rollNumber = 100000;
-      let registrationNumber = 1617615000;
       let successURL;
+      const { rollNumber, registrationNumber } =
+        await getNextRollAndRegistrationNumbers();
+      console.log(rollNumber, registrationNumber);
       if (paymentFor.paymentTitle === "Exam Fee") {
-        const updatedData = await paymentsInfoCollection.findOneAndUpdate(
-          { _id: "studentCounters" },
-          { $inc: { rollNumber: 1, registrationNumber: 1 } },
-          { upsert: true, returnOriginal: false }
-        );
-        rollNumber = updatedData.value.rollNumber;
-        registrationNumber = updatedData.value.registrationNumber;
         successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}&studentRollNumber=${rollNumber}&studentRegistrationNumber=${registrationNumber}`;
       } else {
         successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}`;
@@ -263,7 +289,6 @@ const run = async () => {
         },
       };
 
-      // Update the payment information in the database
       const result = await paymentsInfoCollection.updateOne(
         { transId: transactionId },
         updateData
@@ -273,14 +298,11 @@ const run = async () => {
         let redirectUrl = `${process.env.CLIENT_URL}studentsDashboard/payment/success?transactionId=${transactionId}`;
 
         if (studentRollNumber && studentRegistrationNumber) {
-          // If studentRollNumber and studentRegistrationNumber exist, append them to the redirect URL
           redirectUrl += `&studentRollNumber=${studentRollNumber}&studentRegistrationNumber=${studentRegistrationNumber}`;
         }
 
-        // Redirect to the success URL
         return res.redirect(redirectUrl);
       } else {
-        // Handle the case where the update was unsuccessful
         return res.redirect(
           `${process.env.CLIENT_URL}studentsDashboard/payment/fail`
         );
@@ -312,6 +334,18 @@ const run = async () => {
       }
     });
     // * payment canceled post API end
+
+    // * get user is paid or not API start
+    app.get("/user-is-paid/:id", async (req, res) => {
+      const userId = req.params.id;
+      const query = { userId: userId };
+      const result = await paymentsInfoCollection
+        .find(query)
+        .project({ paymentFor: 1, paid: 1 })
+        .toArray();
+      res.send(result);
+    });
+    // * get user is paid or not API end
 
     // * get users payment API start
     app.get("/getUsersPayment/:transId", async (req, res) => {
