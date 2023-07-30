@@ -68,6 +68,12 @@ const complainCollection = client
 const attendenceCollection = client
   .db("studentManagersDBUser")
   .collection("attendences");
+const noticeCollection = client
+  .db("studentManagersDBUser")
+  .collection("notices");
+const resultsCollection = client
+  .db("studentManagersDBUser")
+  .collection("results");
 // * collections end
 
 // * CRUD run function start
@@ -387,7 +393,7 @@ const run = async () => {
     });
     // * post attendence data API end
 
-    // * get student data for making result API start
+    // * get student data by roll and registration number for making result API start
     app.get("/get-students-for-making-result", async (req, res) => {
       const { studentRollNumber, studentRegistrationNumber } = req.query;
       const getStudent = {
@@ -395,10 +401,35 @@ const run = async () => {
         studentRegistrationNumber: parseInt(studentRegistrationNumber),
       };
       const student = await paymentsInfoCollection.findOne(getStudent);
-      console.log(student);
-    });
 
-    // * get student data for making result API end
+      res.send(student);
+    });
+    // * get student data by roll and registration number for making result API end
+
+    // * get single student by user ID for making result API start
+    app.get("/get-student-by-userId/:userId", async (req, res) => {
+      const userId = req.params.userId;
+      const findStudent = { _id: new ObjectId(userId) };
+      const result = await usersCollection.findOne(findStudent);
+      res.send(result);
+    });
+    // * get single student by user ID for making result API end
+
+    // * make notice API start
+    app.post("/make-notice", async (req, res) => {
+      const noticeData = req.body;
+      const result = await noticeCollection.insertOne(noticeData);
+      res.send(result);
+    });
+    // * make notice API end
+
+    //  * add result API start
+    app.post("/make-result", async (req, res) => {
+      const resultsData = req.body;
+      const result = await resultsCollection.insertOne(resultsData);
+      res.send(result);
+    });
+    //  * add result API end
   } finally {
     console.log();
   }
