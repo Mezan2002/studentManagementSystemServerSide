@@ -430,6 +430,15 @@ const run = async () => {
       res.send(result);
     });
     //  * add result API end
+
+    // * get results API start
+    app.get("/get-results", async (req, res) => {
+      const { resultOfClass, section } = req.query;
+      const query = { studentOfClass: resultOfClass, section: section };
+      const result = await resultsCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get results API end
   } finally {
     console.log();
   }
