@@ -439,6 +439,36 @@ const run = async () => {
       res.send(result);
     });
     // * get results API end
+
+    // * get all notice API start
+    app.get("/get-notice", async (req, res) => {
+      const query = { noticeFor: "All" };
+      const result = await noticeCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get all notice API end
+
+    // * get a students result API start
+    app.get("/get-single-result/:studentId", async (req, res) => {
+      const studentId = req.params.studentId;
+      const query = { studentId };
+      const result = await resultsCollection.findOne(query);
+      res.send(result);
+    });
+    // * get a students result API end
+
+    // * get attendence data API start
+    app.get("/get-attendence", async (req, res) => {
+      const { dateOfAttendence } = req.query;
+      const query = { dateOfAttendence };
+      const result = await attendenceCollection.findOne(query);
+      if (result) {
+        res.send(result);
+      } else {
+        res.send({ message: "Attendence not found for this date" });
+      }
+    });
+    // * get attendence data API end
   } finally {
     console.log();
   }
