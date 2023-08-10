@@ -7,7 +7,7 @@ require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const SSLCommerzPayment = require("sslcommerz-lts");
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5001;
 // * require end
 
 // * SSL Commerce Initialization Start
@@ -469,6 +469,26 @@ const run = async () => {
       }
     });
     // * get attendence data API end
+
+    // ! admins API start
+
+    // * get all students API start
+    app.get("/get-all-students", async (req, res) => {
+      const query = { userType: "student" };
+      const result = await usersCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get all students API end
+
+    // * get all teachers API start
+    app.get("/get-all-teachers", async (req, res) => {
+      const query = { userType: "teacher" };
+      const result = await usersCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get all teachers API end
+
+    // ! admins API end
   } finally {
     console.log();
   }
