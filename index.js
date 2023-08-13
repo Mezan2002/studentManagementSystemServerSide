@@ -62,12 +62,18 @@ const paymentsOccasionCollection = client
 const paymentsInfoCollection = client
   .db("studentManagersDBUser")
   .collection("paymentsInfo");
+const stuffsPaymentInfoCollection = client
+  .db("studentManagersDBUser")
+  .collection("stuffsPaymentInfo");
 const complainCollection = client
   .db("studentManagersDBUser")
   .collection("complains");
-const attendenceCollection = client
+const studentsAttendenceCollection = client
   .db("studentManagersDBUser")
-  .collection("attendences");
+  .collection("studentsAttendences");
+const teachersAttendenceCollection = client
+  .db("studentManagersDBUser")
+  .collection("teachersAttendances");
 const noticeCollection = client
   .db("studentManagersDBUser")
   .collection("notices");
@@ -196,6 +202,7 @@ const run = async () => {
       const paymentInfo = req.body;
       const userInfo = paymentInfo.userInfo;
       const userId = paymentInfo.userId;
+      const user = paymentInfo.user;
       const paymentId = paymentInfo.paymentId;
       const paymentQuery = { _id: new ObjectId(paymentId) };
       const paymentFor = await paymentsOccasionCollection.findOne(paymentQuery);
@@ -203,7 +210,6 @@ const run = async () => {
       let successURL;
       const { rollNumber, registrationNumber } =
         await getNextRollAndRegistrationNumbers();
-      console.log(rollNumber, registrationNumber);
       if (paymentFor.paymentTitle === "Exam Fee") {
         successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}&studentRollNumber=${rollNumber}&studentRegistrationNumber=${registrationNumber}`;
       } else {
@@ -254,6 +260,7 @@ const run = async () => {
               paymentFeeId: paymentFor._id.toString(),
               transId,
               userId,
+              user,
               paid: false,
             };
             if (paymentFor.paymentTitle === "Exam Fee") {
@@ -388,7 +395,9 @@ const run = async () => {
     // * post attendence data API start
     app.post("/postAttendence", async (req, res) => {
       const attendenceData = req.body;
-      const result = await attendenceCollection.insertOne(attendenceData);
+      const result = await studentsAttendenceCollection.insertOne(
+        attendenceData
+      );
       res.send(result);
     });
     // * post attendence data API end
@@ -442,7 +451,7 @@ const run = async () => {
 
     // * get all notice API start
     app.get("/get-notice", async (req, res) => {
-      const query = { noticeFor: "All" };
+      const query = { noticeFor: "All Students" };
       const result = await noticeCollection.find(query).toArray();
       res.send(result);
     });
@@ -461,7 +470,7 @@ const run = async () => {
     app.get("/get-attendence", async (req, res) => {
       const { dateOfAttendence } = req.query;
       const query = { dateOfAttendence };
-      const result = await attendenceCollection.findOne(query);
+      const result = await studentsAttendenceCollection.findOne(query);
       if (result) {
         res.send(result);
       } else {
@@ -488,7 +497,195 @@ const run = async () => {
     });
     // * get all teachers API end
 
+    // * get attendence of all students API start
+    app.get("/get-students-attendance-by-class-and-date", async (req, res) => {
+      const { dateOfAttendence, classOfAttendence, sectionOfAttendence } =
+        req.query;
+      const query = {
+        "attendenceData.dateOfAttendence": dateOfAttendence,
+        "attendenceData.classOfAttendence": classOfAttendence,
+        "attendenceData.sectionOfAttendence": sectionOfAttendence,
+      };
+      const result = await studentsAttendenceCollection.findOne(query);
+      if (result) {
+        res.send(result);
+      } else {
+        res.send({ message: "Attendence not found for this date" });
+      }
+    });
+    // * get attendence of all students API end
+
+    // * get attendence of all teachers API start
+    app.get("/get-teachers-attendance-by-date", async (req, res) => {
+      const { dateOfAttendence } = req.query;
+      const query = {
+        "attendenceData.dateOfAttendence": dateOfAttendence,
+      };
+      const result = await teachersAttendenceCollection.findOne(query);
+      if (result) {
+        res.send(result);
+      } else {
+        res.send({ message: "Attendence not found for this date" });
+      }
+    });
+    // * get attendence of all teachers API end
+
+    // * get individual students attendence API start
+    app.get("/get-individual-student-attendance", async (req, res) => {
+      const { id } = req.query;
+
+      try {
+        const allAttendance = await studentsAttendenceCollection
+          .find({})
+          .toArray();
+
+        const matchingStudents = allAttendance
+          .map((attendance) => {
+            return (
+              attendance.attendenceData.find((student) => student._id === id) ||
+              null
+            );
+          })
+          .filter((student) => student !== null); // Remove null values
+
+        res.send(matchingStudents);
+      } catch (error) {
+        console.error("Error fetching individual student attendance:", error);
+        res
+          .status(500)
+          .send({ error: "An error occurred while fetching data." });
+      }
+    });
+    // * get individual students attendence API end
+
+    // * get individual teachers attendence API start
+    app.get("/get-individual-teacher-attendance", async (req, res) => {
+      const { id } = req.query;
+
+      try {
+        const allAttendance = await teachersAttendenceCollection
+          .find({})
+          .toArray();
+
+        const matchingteachers = allAttendance
+          .map((attendance) => {
+            return (
+              attendance.attendenceData.find((student) => student._id === id) ||
+              null
+            );
+          })
+          .filter((student) => student !== null); // Remove null values
+
+        res.send(matchingteachers);
+      } catch (error) {
+        console.error("Error fetching individual student attendance:", error);
+        res
+          .status(500)
+          .send({ error: "An error occurred while fetching data." });
+      }
+    });
+    // * get individual teachers attendence API end
+
+    // * get all notice API start
+    app.get("/all-notices", async (req, res) => {
+      const query = {};
+      const result = await noticeCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get all notice API end
+
+    // * get teachers notice API start
+    app.get("/teachers-notice", async (req, res) => {
+      const query = { noticeFor: "All Teachers" };
+      const result = await noticeCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get teachers notice API end
+
+    // * get all results API start
+    app.get("/get-all-results", async (req, res) => {
+      const query = {};
+      const result = await resultsCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get all results API end
+
+    // * get result classwise API start
+    app.get("/get-result-classwise", async (req, res) => {
+      const { studentOfClass, section } = req.query;
+      const query = { studentOfClass, section };
+      const result = await resultsCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get result classwise API end
+
+    // * get individual student results API start
+    app.get("/get-individual-student-result", async (req, res) => {
+      const { studentsRollNumber, studentsRegistrationNumber } = req.query;
+      const query = { studentsRollNumber, studentsRegistrationNumber };
+      if (query) {
+        const result = await resultsCollection.findOne(query);
+        res.send(result);
+      } else {
+        res.send({ message: "No results found" });
+      }
+    });
+    // * get individual student results API end
+
+    // * get all students payment API start
+    app.get("/get-all-students-payment", async (req, res) => {
+      try {
+        const query = {};
+        const result = await paymentsInfoCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Error:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+    // * get all students payment API end
+
+    // * get individual students payment API start
+    app.get("/get-individual-student-payments", async (req, res) => {
+      const { id } = req.query;
+      const query = {};
+      const result = await paymentsInfoCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get individual students payment API end
+
+    // * get stuffs payment API start
+    app.get("/get-stuffs-payment", async (req, res) => {
+      const query = {};
+      const result = await stuffsPaymentInfoCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get stuffs payment API end
+
+    // * get individual users data API start
+    app.get("/get-individual-students-data-by-id/:id", async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+    // * get individual users data API end
+
     // ! admins API end
+
+    // ! temp
+
+    app.post("/stuffs-payment", async (req, res) => {
+      const data = req.body;
+      const result = await stuffsPaymentInfoCollection.insertOne(data);
+      res.send(result);
+    });
+
+    app.post("/teachersAdd", async (req, res) => {
+      const data = req.body;
+      const result = await teachersAttendenceCollection.insertOne(data);
+      res.send(result);
+    });
   } finally {
     console.log();
   }
