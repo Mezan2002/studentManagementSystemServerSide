@@ -380,6 +380,8 @@ const run = async () => {
     // * get students to take attendence API start
     app.get("/getStudents", async (req, res) => {
       const { selectedClass, section } = req.query;
+      console.log(selectedClass, section);
+
       const query = {
         "studentsInfo.class": selectedClass,
         "studentsInfo.section": section,
@@ -388,15 +390,18 @@ const run = async () => {
         .find(query)
         .project({ studentsInfo: 1, _id: 1 })
         .toArray();
+      console.log(result);
+
       res.send(result);
     });
     // * get students to take attendence API end
 
     // * post attendence data API start
     app.post("/postAttendence", async (req, res) => {
-      const attendenceData = req.body;
+      const attendanceDataArray = req.body;
+      console.log(attendanceDataArray);
       const result = await studentsAttendenceCollection.insertOne(
-        attendenceData
+        attendanceDataArray
       );
       res.send(result);
     });
@@ -501,10 +506,11 @@ const run = async () => {
     app.get("/get-students-attendance-by-class-and-date", async (req, res) => {
       const { dateOfAttendence, classOfAttendence, sectionOfAttendence } =
         req.query;
+      console.log(dateOfAttendence, classOfAttendence, sectionOfAttendence);
       const query = {
-        "attendenceData.dateOfAttendence": dateOfAttendence,
-        "attendenceData.classOfAttendence": classOfAttendence,
-        "attendenceData.sectionOfAttendence": sectionOfAttendence,
+        dateOfAttendence: dateOfAttendence,
+        classOfAttendence: classOfAttendence,
+        sectionOfAttendence: sectionOfAttendence,
       };
       const result = await studentsAttendenceCollection.findOne(query);
       if (result) {
@@ -671,11 +677,37 @@ const run = async () => {
     });
     // * get individual users data API end
 
+    // * update user data API start
+    app.put("/update-user/:id", async (req, res) => {
+      const studentId = req.params.id;
+      const updatedData = req.body;
+      console.log(updatedData, studentId);
+
+      const query = { _id: new ObjectId(studentId) };
+
+      const updatedDoc = { $set: updatedData };
+
+      const result = await usersCollection.updateOne(query, updatedDoc);
+      res.send(result);
+    });
+    // * update user data API end
+
+    // * delete user data API start
+    app.delete("/delete-user/:usersID", async (req, res) => {
+      const { usersID } = req.params;
+      const query = { _id: new ObjectId(usersID) };
+      const result = await usersCollection.deleteOne(query);
+      res.send(result);
+    });
+    // * delete teacher data API end
+
+    //
+
     // ! admins API end
 
     // ! temp
 
-    app.post("/stuffs-payment", async (req, res) => {
+    /* app.post("/stuffs-payment", async (req, res) => {
       const data = req.body;
       const result = await stuffsPaymentInfoCollection.insertOne(data);
       res.send(result);
@@ -685,7 +717,7 @@ const run = async () => {
       const data = req.body;
       const result = await teachersAttendenceCollection.insertOne(data);
       res.send(result);
-    });
+    }); */
   } finally {
     console.log();
   }
