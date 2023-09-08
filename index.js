@@ -53,9 +53,7 @@ const verifyJWT = (req, res, next) => {
 
 // * collections start
 const usersCollection = client.db("studentManagersDBUser").collection("users");
-const rollAndRegNumberCounterCollection = client
-  .db("studentManagersDBUser")
-  .collection("counter");
+
 const paymentsOccasionCollection = client
   .db("studentManagersDBUser")
   .collection("paymentsOccasion");
@@ -80,11 +78,67 @@ const noticeCollection = client
 const resultsCollection = client
   .db("studentManagersDBUser")
   .collection("results");
+const rollNumbersCollection = client
+  .db("studentManagersDBUser")
+  .collection("rollNumbers");
+
 // * collections end
 
 // * CRUD run function start
 const run = async () => {
   try {
+    // * generate roll number start
+
+    // Create a new endpoint for generating roll numbers
+    app.get("/generate-roll-number", async (req, res) => {
+      try {
+        const { session } = req.query;
+        console.log(session);
+        const nextRollNumber = await generateNextRollNumber(session);
+        res.status(200).send({ rollNumber: nextRollNumber });
+      } catch (error) {
+        console.error("Error generating roll number:", error);
+        res.status(500).send({ error: "Unable to generate roll number" });
+      }
+    });
+
+    // Function to generate the next roll number
+    async function generateNextRollNumber(session) {
+      try {
+        let query;
+        let field;
+
+        if (session === "22-23") {
+          query = { "value22-23": { $exists: true } };
+          field = "value22-23";
+        } else if (session === "21-22") {
+          query = { "value21-22": { $exists: true } };
+          field = "value21-22";
+        } else {
+          // Handle other cases or provide a default field
+        }
+
+        if (!field) {
+          throw new Error("Invalid session value");
+        }
+
+        const rollNumberDocument = await rollNumbersCollection.findOne(query);
+        const currentValue = rollNumberDocument[field];
+        const nextValue = currentValue + 1;
+
+        await rollNumbersCollection.updateOne(
+          {},
+          { $set: { [field]: nextValue } }
+        );
+
+        return nextValue;
+      } catch (error) {
+        throw error;
+      }
+    }
+
+    // * generate roll number end
+
     // * register user API start
     app.post("/registerUser", async (req, res) => {
       const usersData = req.body;
@@ -131,6 +185,26 @@ const run = async () => {
     });
     // * get users data API end
 
+    // * get not approved users data API start
+    app.get("/get-not-approved-user", async (req, res) => {
+      const query = { isApproved: false };
+      const result = await usersCollection
+        .find(query)
+        .sort({ registeredAt: -1 })
+        .project({
+          isApproved: 1,
+          registeredAt: 1,
+          userType: 1,
+          "studentsInfo.studentsImage": 1,
+          "studentsInfo.studentNameInEnglish": 1,
+          "teachersInfo.teachersNameInEnglish": 1,
+          "teachersInfo.teachersImage": 1,
+        })
+        .toArray();
+      res.send(result);
+    });
+    // * get not approved users data API end
+
     // * is phone number has registered before API start
     app.get("/isNumberExist", async (req, res) => {
       const phoneNumber = req.query.phoneNumber;
@@ -164,7 +238,7 @@ const run = async () => {
     // * get the payments occasion API end
 
     // * function to get roll and registration number API start
-    async function initializeCounters() {
+    /* async function initializeCounters() {
       const counterDoc = await rollAndRegNumberCounterCollection.findOne({
         _id: "studentCounters",
       });
@@ -193,7 +267,7 @@ const run = async () => {
         rollNumber: counterDoc.value.rollNumber,
         registrationNumber: counterDoc.value.registrationNumber,
       };
-    }
+    } */
 
     // * function to get roll and registration number API end
 
@@ -208,14 +282,7 @@ const run = async () => {
       const paymentFor = await paymentsOccasionCollection.findOne(paymentQuery);
       const transId = uuidv4();
       let successURL;
-      const { rollNumber, registrationNumber } =
-        await getNextRollAndRegistrationNumbers();
-      if (paymentFor.paymentTitle === "Exam Fee") {
-        successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}&studentRollNumber=${rollNumber}&studentRegistrationNumber=${registrationNumber}`;
-      } else {
-        successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}`;
-      }
-
+      successURL = `${process.env.SERVER_URL}/payment/success?transactionId=${transId}`;
       const data = {
         total_amount: paymentFor?.paymentAmount,
         currency: "BDT",
@@ -263,13 +330,6 @@ const run = async () => {
               user,
               paid: false,
             };
-            if (paymentFor.paymentTitle === "Exam Fee") {
-              paymentData.studentRollNumber = rollNumber;
-              paymentData.studentRegistrationNumber = registrationNumber;
-            }
-
-            console.log(paymentData);
-
             paymentsInfoCollection.insertOne(paymentData);
             res.send({ url: GatewayPageURL });
           } else {
@@ -407,6 +467,31 @@ const run = async () => {
     });
     // * post attendence data API end
 
+    // * get attendence is taken API start
+    app.get("/check-is-attendence-taken", async (req, res) => {
+      const { dateOfAttendence, classOfAttendence, sectionOfAttendence } =
+        req.query;
+      const query = {
+        dateOfAttendence,
+        classOfAttendence,
+        sectionOfAttendence,
+      };
+      const result = await studentsAttendenceCollection.findOne(query);
+      if (result) {
+        res.send({
+          result,
+          message: "Attendence is already taken!",
+          isAttendence: true,
+        });
+      } else {
+        res.send({
+          message: "Attendence is not taken!",
+          isAttendence: false,
+        });
+      }
+    });
+    // * get attendence is taken API end
+
     // * get student data by roll and registration number for making result API start
     app.get("/get-students-for-making-result", async (req, res) => {
       const { studentRollNumber, studentRegistrationNumber } = req.query;
@@ -457,19 +542,22 @@ const run = async () => {
     // * get all notice API start
     app.get("/get-notice", async (req, res) => {
       const query = { noticeFor: "All Students" };
-      const result = await noticeCollection.find(query).toArray();
+      const result = await noticeCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
     });
     // * get all notice API end
 
-    // * get a students result API start
+    // * get all students result API start
     app.get("/get-single-result/:studentId", async (req, res) => {
       const studentId = req.params.studentId;
       const query = { studentId };
       const result = await resultsCollection.findOne(query);
       res.send(result);
     });
-    // * get a students result API end
+    // * get all students result API end
 
     // * get attendence data API start
     app.get("/get-attendence", async (req, res) => {
@@ -489,7 +577,10 @@ const run = async () => {
     // * get all students API start
     app.get("/get-all-students", async (req, res) => {
       const query = { userType: "student" };
-      const result = await usersCollection.find(query).toArray();
+      const result = await usersCollection
+        .find(query)
+        .sort({ registeredAt: -1 })
+        .toArray();
       res.send(result);
     });
     // * get all students API end
@@ -701,7 +792,47 @@ const run = async () => {
     });
     // * delete teacher data API end
 
-    //
+    // * get complaint data API start
+    app.get("/get-all-complains", async (req, res) => {
+      const query = {};
+      const result = await complainCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get complaint data API end
+
+    // * approve user by admin API start
+    app.patch("/approve-user/:userId", async (req, res) => {
+      const { userId } = req.params;
+      const query = { _id: new ObjectId(userId) };
+      const updateData = {
+        $set: {
+          isApproved: true,
+        },
+      };
+      const result = await usersCollection.updateOne(query, updateData);
+      res.send(result);
+    });
+    // * approve user by admin API end
+
+    // * get all students by semister API start
+    app.get("/get-students-by-semister", async (req, res) => {
+      const { semister, session } = req.query;
+      const query = {
+        "studentsInfo.section": semister,
+        "studentsInfo.session": session,
+      };
+      const result = await usersCollection
+        .find(query)
+        .project({
+          studentsInfo: 1,
+        })
+        .toArray();
+
+      res.send(result);
+    });
+    // * get all students by semister API end
+
+    // *
 
     // ! admins API end
 
