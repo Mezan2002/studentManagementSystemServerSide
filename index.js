@@ -167,12 +167,13 @@ const run = async () => {
         });
       } else {
         const objectId = result._id;
+        const isApproved = result.isApproved;
         const userType = result.userType;
         const id = objectId.toString().match(/([0-9a-fA-F]){24}/)[0];
         const token = jwt.sign({ id }, process.env.jwt_token_secret, {
           expiresIn: "10h",
         });
-        res.send({ token, userType });
+        res.send({ token, userType, isApproved });
       }
     });
     // * login user API End
@@ -532,8 +533,12 @@ const run = async () => {
 
     // * get results API start
     app.get("/get-results", async (req, res) => {
-      const { resultOfClass, section } = req.query;
-      const query = { studentOfClass: resultOfClass, section: section };
+      const { resultOfClass, section, session } = req.query;
+      const query = {
+        "studentsData.department": resultOfClass,
+        "studentsData.semister": section,
+        "studentsData.session": session,
+      };
       const result = await resultsCollection.find(query).toArray();
       res.send(result);
     });
@@ -576,7 +581,7 @@ const run = async () => {
 
     // * get all students API start
     app.get("/get-all-students", async (req, res) => {
-      const query = { userType: "student" };
+      const query = { userType: "student", isApproved: true };
       const result = await usersCollection
         .find(query)
         .sort({ registeredAt: -1 })
@@ -587,8 +592,11 @@ const run = async () => {
 
     // * get all teachers API start
     app.get("/get-all-teachers", async (req, res) => {
-      const query = { userType: "teacher" };
-      const result = await usersCollection.find(query).toArray();
+      const query = { userType: "teacher", isApproved: true };
+      const result = await usersCollection
+        .find(query)
+        .sort({ registeredAt: -1 })
+        .toArray();
       res.send(result);
     });
     // * get all teachers API end
@@ -832,7 +840,51 @@ const run = async () => {
     });
     // * get all students by semister API end
 
-    // *
+    // * get single students result API start
+    app.get("/get-result-by-student-roll-number", async (req, res) => {
+      const { semister, session, rollNumber } = req.query;
+      const query = {
+        "studentsData.semister": semister,
+        "studentsData.session": session,
+        "studentsData.rollNumber": rollNumber,
+      };
+      const result = await resultsCollection.findOne(query);
+      res.send(result);
+    });
+    // * get single students result API end
+
+    // * get all students result API start
+    app.get("/get-result-by-department", async (req, res) => {
+      const { department, semister, session } = req.query;
+      const query = {
+        "studentsData.department": department,
+        "studentsData.semister": semister,
+        "studentsData.session": session,
+      };
+      const result = await resultsCollection.find(query).toArray();
+      res.send(result);
+    });
+    // * get all students result API end
+
+    // * get single notice API start
+    app.get("/get-notice-by-noticeId", async (req, res) => {
+      const { noticeId } = req.query;
+      const query = { _id: new ObjectId(noticeId) };
+
+      console.log(query);
+      const result = await noticeCollection.findOne(query);
+      res.send(result);
+    });
+    // * get single notice API end
+
+    // * get single complain API start
+    app.get("/get-complain-by-complainId", async (req, res) => {
+      const { complainId } = req.query;
+      const query = { _id: new ObjectId(complainId) };
+      const result = await complainCollection.findOne(query);
+      res.send(result);
+    });
+    // * get single complain API end
 
     // ! admins API end
 
